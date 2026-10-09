@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SNN103</RootNamespace>
+    <AssemblyName>SNN103</AssemblyName>
+    <Authors>Erisnel Lora Sugve</Authors>
+    <Description>Event-driven Neuromorphic Rank-Order Spiking Neural Network in .NET 10</Description>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/sharkcode1001/SNN103</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>neuromorphic;spiking-neural-networks;snn;machine-learning;lif-neuron;rank-order-coding</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Referencia que ya tenías: gráficas con ScottPlot.
+         Si tu código usa la API de la v4, cambia la versión a 4.1.74.
+         (La puedes confirmar en %USERPROFILE%\.nuget\packages\scottplot) -->
+    <PackageReference Include="ScottPlot" Version="5.1.59" />
+  </ItemGroup>
+
+  <!-- Los CSV de datos viajan con la app: en cada compilación se copian
+       a la carpeta de salida (bin/.../datos/), para que cualquiera pueda
+       verificar los resultados re-ejecutando el experimento. -->
+  <ItemGroup>
+    <Content Include="datos\*.csv">
+      <Link>%(FileName)%(Extension)</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
