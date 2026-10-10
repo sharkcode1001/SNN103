@@ -191,18 +191,49 @@ public static class Experimento
             $"  - Ratio de eventos: ~{(multsAvg / spikesAvg):F1}x menos operaciones dinámicas en la SNN.",
             $"  - Event ratio:      ~{(multsAvg / spikesAvg):F1}x fewer dynamic operations in SNN."));
         Console.WriteLine();
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine(I18n.T(
-            "  INTERPRETACIÓN CIENTÍFICA:\n" +
-            "  La red de pulsos logra una precisión virtualmente idéntica al MLP clásico\n" +
-            "  (95.0% vs 96.7%), pero sustituye miles de multiplicaciones continuas por\n" +
-            "  apenas ~173 eventos sinápticos.",
-            "  SCIENTIFIC INTERPRETATION:\n" +
-            "  The spiking network achieves virtually identical accuracy to the classic MLP\n" +
-            "  (95.0% vs 96.7%), replacing thousands of continuous multiplications\n" +
-            "  with only ~173 synaptic events."));
-        Console.ResetColor();
-        Console.WriteLine("========================================================================");
+        // ---------- Exportar Figuras con ChartExporter ----------
+        try
+        {
+            // 1. Matriz de confusión
+            int[,] confMat = new int[Classes, Classes];
+            for (int i = 0; i < testX.Count; i++)
+                confMat[testY[i], snnPred[i]]++;
+            ChartExporter.ExportConfusionMatrix(confMat, Classes);
+
+            // 2. SNN vs MLP comparación
+            ChartExporter.ExportSnnVsMlpComparison(snnAcc, mlpAcc, spikesAvg, multsAvg);
+
+            // 3. Raster plot de una muestra de prueba (ej. primer dígito)
+            var samplePatch = Slice(testX[0], 0);
+            var sampleResult = l1[0].PresentStimulus(samplePatch, 0.0);
+            var spikeTimes = new List<double>();
+            var neuronIndices = new List<double>();
+            for (int s = 0; s < Strips; s++)
+            {
+                var p = Slice(testX[0], s);
+                for (int g = 0; g < GroupsPerStrip; g++)
+                {
+                    int gi = s * GroupsPerStrip + g;
+                    var res = l1[gi].PresentStimulus(p, 0.0);
+                    for (int pos = 0; pos < res.FirstSpikeTimes.Length; pos++)
+                    {
+                        if (res.FirstSpikeTimes[pos] >= 0)
+                        {
+                            spikeTimes.Add(res.FirstSpikeTimes[pos]);
+                            neuronIndices.Add(gi * N + pos);
+                        }
+                    }
+                }
+            }
+            if (spikeTimes.Count > 0)
+                ChartExporter.ExportRasterPlot(spikeTimes.ToArray(), neuronIndices.ToArray());
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[Aviso] No se pudieron exportar algunas figuras: {ex.Message}");
+            Console.ResetColor();
+        }
     }
 
     // ================= Construcción =================
@@ -226,7 +257,7 @@ public static class Experimento
     private static string Ask(string prompt, string def)
     {
         Console.Write(prompt);
-        string? s = Console.ReadLine()?.Trim();
+        string? s = Console.ReadLine()?.Trim().Trim('\uFEFF', '\0', '\r', '\n');
         return string.IsNullOrEmpty(s) ? def : s;
     }
 
@@ -439,15 +470,6 @@ public static class Experimento
     // Se reporta media ± desviación en test. Si (a) supera a (b) con las
     // mismas semillas, el orden aporta de verdad.
 
-    // ============ Punto 1 del artículo: 10 clases × 5 semillas ============
-    //
-    // Qué se mide, por semilla (split estratificado 50/50 + pesos nuevos):
-    //   a) nuestra red con rasgos de ORDEN (1/rango),
-    //   b) la MISMA capa con rasgos BINARIOS (disparó/no disparó) — ablación,
-    //   c) MLP clásico 64->32->10 sobre los mismos datos.
-    // Se reporta media ± desviación en test. Si (a) supera a (b) con las
-    // mismas semillas, el orden aporta de verdad.
-
     public static void Run10()
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -593,11 +615,24 @@ public static class Experimento
             $"     is due to the fixed, non-learning front-end. More random features do not\n" +
             $"     close it, as reported by the pre-registered stopping rule."));
         Console.WriteLine("========================================================================");
+
+        // ---------- Exportar Gráfico de Ablación de 10 Clases ----------
+        try
+        {
+            ChartExporter.ExportBenchmark10Classes(accOrder, accBin, accMlp);
+        }
+        catch (Exception ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"[Aviso] No se pudo exportar la gráfica de benchmark: {ex.Message}");
+            Console.ResetColor();
+        }
     }
 
     /// <summary>
-    /// Experimento 4.2 del paper: Robustez de subregiones ante ruido temporal (jitter).
-    /// Muestra por qué grupos pequeños (2x4) conservan el orden mientras grupos grandes (1x8) colapsan.
+    /// Demostración analítica (Sección 4.2 del paper): Tolerancia de subregiones ante ruido temporal de canal.
+    /// Ilustra analíticamente el principio físico de espaciado temporal: por qué grupos modulares pequeños (2x4)
+    /// conservan el orden mientras grupos largos (1x8) colapsan ante perturbaciones de canal.
     /// </summary>
     public static void RunNoiseRobustnessDemo()
     {
@@ -605,27 +640,27 @@ public static class Experimento
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("========================================================================");
         Console.WriteLine(I18n.T(
-            " DEMOSTRACIÓN SECCIÓN 4.2: SUBREGIONES FRENTE AL RUIDO TEMPORAL",
-            " SECTION 4.2 DEMO: SUBREGIONS UNDER TEMPORAL JITTER"));
+            " ILUSTRACIÓN ANALÍTICA SECCIÓN 4.2: SUBREGIONES FRENTE AL RUIDO TEMPORAL",
+            " SECTION 4.2 ANALYTICAL DEMO: SUBREGIONS UNDER TEMPORAL JITTER"));
         Console.WriteLine("========================================================================");
         Console.ResetColor();
         Console.WriteLine(I18n.T("OBJETIVO:", "OBJECTIVE:"));
         Console.WriteLine(I18n.T(
-            "  Evaluar la degradación del orden de primer disparo bajo ruido y jitter\n" +
-            "  de canal: 1 grupo de 8 neuronas vs 2 subregiones modulares de 4 neuronas.",
-            "  Evaluate the degradation of first-spike permutation under channel noise\n" +
-            "  and jitter: 1 group of 8 neurons vs 2 modular subregions of 4 neurons."));
+            "  Demostrar analíticamente el modelo físico de canal temporal (jitter uniforme ±0.06):\n" +
+            "  1 grupo de 8 neuronas (margen temporal estrecho) vs 2 subregiones de 4 neuronas (margen amplio).",
+            "  Demonstrate analytically the physical temporal channel model (uniform jitter ±0.06):\n" +
+            "  1 group of 8 neurons (narrow temporal margin) vs 2 subregions of 4 neurons (wide margin)."));
         Console.WriteLine();
 
         const int trials = 1000;
-        const double noiseSigma = 0.06;
+        const double noiseAmp = 0.06;
         var rng = new Random(42);
 
         int okG8 = 0;
         for (int t = 0; t < trials; t++)
         {
             double[] ideal8 = Enumerable.Range(0, 8).Select(i => i * 0.085).ToArray();
-            double[] noisy8 = ideal8.Select(v => v + (rng.NextDouble() * 2 - 1) * 0.06).ToArray();
+            double[] noisy8 = ideal8.Select(v => v + (rng.NextDouble() * 2 - 1) * noiseAmp).ToArray();
             var ordIdeal8 = ideal8.Select((v, i) => (v, i)).OrderBy(p => p.v).Select(p => p.i).ToList();
             var ordNoisy8 = noisy8.Select((v, i) => (v, i)).OrderBy(p => p.v).Select(p => p.i).ToList();
             if (ordIdeal8.SequenceEqual(ordNoisy8)) okG8++;
@@ -639,7 +674,7 @@ public static class Experimento
             for (int sub = 0; sub < 2; sub++)
             {
                 double[] ideal4 = Enumerable.Range(0, 4).Select(i => i * 0.22).ToArray();
-                double[] noisy4 = ideal4.Select(v => v + (rng.NextDouble() * 2 - 1) * 0.06).ToArray();
+                double[] noisy4 = ideal4.Select(v => v + (rng.NextDouble() * 2 - 1) * noiseAmp).ToArray();
                 var ordIdeal4 = ideal4.Select((v, i) => (v, i)).OrderBy(p => p.v).Select(p => p.i).ToList();
                 var ordNoisy4 = noisy4.Select((v, i) => (v, i)).OrderBy(p => p.v).Select(p => p.i).ToList();
                 if (!ordIdeal4.SequenceEqual(ordNoisy4)) { ok = false; break; }
@@ -649,10 +684,10 @@ public static class Experimento
         double accG4 = 100.0 * okG4 / trials;
 
         Console.WriteLine(I18n.T(
-            $"Simulando canal temporal con jitter gaussiano (sigma = {noiseSigma}, {trials} ensayos):",
-            $"Simulating temporal channel with jitter (sigma = {noiseSigma}, {trials} trials):"));
+            $"Simulando canal temporal con jitter uniforme (amplitud ±{noiseAmp}, {trials} ensayos sintéticos):",
+            $"Simulating temporal channel with uniform jitter (amplitude ±{noiseAmp}, {trials} synthetic trials):"));
         Console.WriteLine();
-        Console.WriteLine(I18n.T("RESULTADOS MEDIDOS EN LA PRUEBA:", "MEASURED RUNTIME RESULTS:"));
+        Console.WriteLine(I18n.T("RESULTADOS DEL MODELO ANALÍTICO EN EJECUCIÓN:", "RUNTIME ANALYTICAL MODEL RESULTS:"));
         Console.WriteLine(I18n.T(
             $"  - 1 Grupo monolítico de 8 neuronas (1x8):      {accG8:F1}% órdenes intactos",
             $"  - 1 Monolithic group of 8 neurons (1x8):       {accG8:F1}% intact orders"));
@@ -660,7 +695,7 @@ public static class Experimento
             $"  - 2 Subregiones modulares de 4 neuronas (2x4): {accG4:F1}% órdenes intactos",
             $"  - 2 Modular subregions of 4 neurons (2x4):     {accG4:F1}% intact orders"));
         Console.WriteLine();
-        Console.WriteLine(I18n.T("VALORES DE REFERENCIA EN EL ARTÍCULO (Sección 4.2):", "REFERENCE VALUES REPORTED IN PAPER (Section 4.2):"));
+        Console.WriteLine(I18n.T("VALORES DE REFERENCIA EN EL ARTÍCULO (Experimento SNN real, Sección 4.2):", "REFERENCE VALUES REPORTED IN PAPER (Real SNN experiment, Section 4.2):"));
         Console.WriteLine(I18n.T(
             "  - 1x8 neuronas: 62.3%  |  2x4 neuronas: 98.9%",
             "  - 1x8 neurons:  62.3%  |  2x4 neurons:  98.9%"));

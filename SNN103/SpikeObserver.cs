@@ -1,11 +1,9 @@
 namespace SNN103;
 
 /// <summary>
-/// Observador pasivo: NO codifica ni decodifica nada, solo mira lo que la
-/// red hace por sí misma y mide. Agrupa los órdenes de disparo repetidos
-/// en "zonas" emergentes y calcula capacidad, dispersión, repetibilidad y
-/// discriminabilidad (¿identifica un lector simple el estímulo a partir
-/// del patrón de spikes aunque el string exacto varíe?).
+/// Módulo de investigación y diagnóstico (Experimentos 4.1 de Capacidad y Zonas).
+/// Observador pasivo: NO codifica ni decodifica nada, solo observa las dinámicas
+/// emergentes de la red y mide capacidad en bits, dispersión, repetibilidad y discriminabilidad 1-NN.
 /// </summary>
 public sealed class SpikeObserver
 {

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 
 namespace SNN103;
 
@@ -58,6 +58,13 @@ public static class CsvExperiment
         layer.InputJitter = 0;         // canal limpio: el experimento es de aprendizaje, no de ruido
         layer.LearningEnabled = false; // pesos fijos: la representación no se mueve
 
+        // Precalculamos las respuestas de la capa oculta fija una sola vez
+        var hiddenFeatures = rows.Select(r =>
+        {
+            var tr = layer.PresentStimulus(r.x, noiseAmp: 0.0);
+            return FeatureVector(tr, hiddenNeurons);
+        }).ToList();
+
         // ---- Fase 2: perceptrón supervisado (capa oculta congelada) ----
         var readout = new ReadoutLayer(inputCount: hiddenNeurons, outputCount: 2, seed: 7);
         Console.WriteLine("Fase 2: perceptrón supervisado (capa oculta congelada)...");
@@ -69,8 +76,7 @@ public static class CsvExperiment
             double err = 0;
             foreach (int i in order)
             {
-                var r = layer.PresentStimulus(rows[i].x, noiseAmp: 0.0);
-                err += readout.Train(FeatureVector(r, hiddenNeurons), rows[i].y);
+                err += readout.Train(hiddenFeatures[i], rows[i].y);
             }
             if (err == 0) { convergedAt = epoch; break; }
         }
