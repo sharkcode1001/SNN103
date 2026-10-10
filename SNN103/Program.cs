@@ -32,20 +32,20 @@ if (args.Length > 0 && !args[0].StartsWith("--lang") && args[0] != "--en" && arg
         case "-b":
         case "benchmark":
         case "1":
-            Experimento.Run10();
+            Experiment.Run10();
             return;
 
         case "--pilot":
         case "-p":
         case "pilot":
         case "2":
-            Experimento.Run();
+            Experiment.Run();
             return;
 
         case "--noise":
         case "-n":
         case "noise":
-            Experimento.RunNoiseRobustnessDemo();
+            Experiment.RunNoiseRobustnessDemo();
             return;
 
         case "--all":
@@ -123,13 +123,13 @@ while (true)
     switch (choice.ToLowerInvariant())
     {
         case "1":
-            Experimento.Run10();
+            Experiment.Run10();
             break;
         case "2":
-            Experimento.Run();
+            Experiment.Run();
             break;
         case "3":
-            Experimento.RunNoiseRobustnessDemo();
+            Experiment.RunNoiseRobustnessDemo();
             break;
         case "4":
             RunFullSuite();
@@ -166,15 +166,15 @@ static void RunFullSuite()
     Console.WriteLine();
     
     Console.WriteLine(I18n.T("=== ETAPA 1/3: Demostración de Robustez ante Ruido (Sección 4.2) ===", "=== STAGE 1/3: Noise Robustness Demo (Section 4.2) ==="));
-    Experimento.RunNoiseRobustnessDemo();
+    Experiment.RunNoiseRobustnessDemo();
     Console.WriteLine();
 
     Console.WriteLine(I18n.T("=== ETAPA 2/3: Piloto Visual (4 Clases) ===", "=== STAGE 2/3: Visual Pilot (4 Classes) ==="));
-    Experimento.Run();
+    Experiment.Run();
     Console.WriteLine();
 
     Console.WriteLine(I18n.T("=== ETAPA 3/3: Validación Estadística Central (10 Clases × 5 Semillas) ===", "=== STAGE 3/3: Central Statistical Validation (10 Classes × 5 Seeds) ==="));
-    Experimento.Run10();
+    Experiment.Run10();
     Console.WriteLine();
 
     Console.ForegroundColor = ConsoleColor.Green;

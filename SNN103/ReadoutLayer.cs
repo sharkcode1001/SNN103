@@ -1,29 +1,23 @@
-﻿namespace SNN103;
+namespace SNN103;
 
 /// <summary>
-/// Capa de salida SUPERVISADA con REGLA DEL PERCEPTRÓN (Rosenblatt, 1958).
-/// Lee el vector binario de disparo de la capa competitiva y aprende el mapeo
-/// a las salidas deseadas.
+/// Supervised output layer using the classic Perceptron learning rule (Rosenblatt, 1958).
+/// Reads feature vectors from the competitive front-end and learns the mapping
+/// to desired target outputs.
 ///
-/// Por el teorema de convergencia del perceptrón: si los códigos ocultos son
-/// linealmente separables para la tarea, esta regla los separa en un número
-/// finito de pasos (garantizado). Si no converge, los códigos NO son
-/// separables: diagnóstico definitivo, no un problema del optimizador.
-///
-/// División de trabajo honesta:
-///   - La capa competitiva (aleatoria o STDP) expande las entradas a un código,
-///   - esta capa aprende la TAREA (entradas -> salidas correctas).
+/// Perceptron convergence theorem: if feature representations are linearly
+/// separable, this rule converges in a finite number of steps.
 /// </summary>
 public sealed class ReadoutLayer
 {
     public int InputCount { get; }
     public int OutputCount { get; }
 
-    /// <summary>Tasa de aprendizaje (1.0 es lo estándar para el perceptrón).</summary>
+    /// <summary>Learning rate (1.0 standard for linear perceptron).</summary>
     public double LearningRate = 1.0;
 
-    private readonly double[,] _w; // [salida, entrada]
-    private readonly double[] _b;  // sesgos
+    private readonly double[,] _w; // [output, input]
+    private readonly double[] _b;  // biases
 
     public ReadoutLayer(int inputCount, int outputCount, int seed)
     {
@@ -44,7 +38,7 @@ public sealed class ReadoutLayer
         return s;
     }
 
-    /// <summary>Predice las salidas (0/1) para un vector de rasgos.</summary>
+    /// <summary>Predicts binary outputs (0/1) for a given feature vector.</summary>
     public int[] Predict(double[] x)
     {
         var y = new int[OutputCount];
@@ -53,7 +47,7 @@ public sealed class ReadoutLayer
         return y;
     }
 
-    /// <summary>La clase con mayor activación (argmax). Nunca se abstiene.</summary>
+    /// <summary>Returns the class index with highest activation (argmax).</summary>
     public int PredictBest(double[] x)
     {
         int best = 0;
@@ -67,8 +61,8 @@ public sealed class ReadoutLayer
     }
 
     /// <summary>
-    /// Un paso de la regla del perceptrón. Solo corrige cuando se equivoca.
-    /// Devuelve 1 si hubo error en alguna salida, 0 si todo correcto.
+    /// Single update step using the Perceptron learning rule. Updates weights on misclassification.
+    /// Returns 1.0 if any output was misclassified, 0.0 otherwise.
     /// </summary>
     public double Train(double[] x, int[] target)
     {

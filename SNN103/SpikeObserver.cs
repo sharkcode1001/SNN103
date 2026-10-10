@@ -1,9 +1,9 @@
 namespace SNN103;
 
 /// <summary>
-/// Módulo de investigación y diagnóstico (Experimentos 4.1 de Capacidad y Zonas).
-/// Observador pasivo: NO codifica ni decodifica nada, solo observa las dinámicas
-/// emergentes de la red y mide capacidad en bits, dispersión, repetibilidad y discriminabilidad 1-NN.
+/// Research and diagnostic module (Experiment 4.1: Capacity and Zones).
+/// Passive observer: monitors emergent network dynamics and measures
+/// capacity in bits, sparsity, repeatability, and 1-NN discriminability.
 /// </summary>
 public sealed class SpikeObserver
 {
@@ -29,8 +29,8 @@ public sealed class SpikeObserver
     }
 
     /// <summary>
-    /// Distancia entre dos patrones de primer disparo. Silencio (-1) se mapea
-    /// a un tiempo ficticio lejano: disparar-vs-no-disparar penaliza fuerte.
+    /// Distance between two first-spike patterns. Silence (-1) is mapped
+    /// to a distant virtual time step to heavily penalize missing spikes.
     /// </summary>
     private double PatternDistance(int[] a, int[] b)
     {
@@ -45,10 +45,8 @@ public sealed class SpikeObserver
     }
 
     /// <summary>
-    /// Precisión 1-NN leave-one-out: para cada ensayo, ¿el ensayo más parecido
-    /// es del mismo estímulo? Es la medida funcional del código: no exige que
-    /// el string de la zona sea idéntico, solo que los patrones del mismo
-    /// estímulo vivan juntos en el espacio de patrones.
+    /// Leave-one-out 1-NN accuracy: tests whether patterns belonging to the
+    /// same stimulus cluster together in the temporal pattern space.
     /// </summary>
     public double NearestNeighborAccuracy()
     {
@@ -72,33 +70,32 @@ public sealed class SpikeObserver
     public void PrintReport()
     {
         Console.WriteLine();
-        Console.WriteLine("=== ZONAS EMERGENTES (orden de disparo por estímulo) ===");
+        Console.WriteLine("=== EMERGENT ZONES (Spike arrival order by stimulus) ===");
         var allZones = new HashSet<string>();
         foreach (var kv in _zonesByStimulus.OrderBy(kv => kv.Key))
         {
             var groups = kv.Value.GroupBy(z => z).OrderByDescending(g => g.Count()).ToList();
             var top = groups[0];
             double consistency = 100.0 * top.Count() / kv.Value.Count;
-            Console.WriteLine($"  Estímulo {kv.Key}: zona mayoritaria [{top.Key}] " +
-                              $"— repetibilidad {consistency:F1}% ({top.Count()}/{kv.Value.Count})");
-            Console.WriteLine($"    distribución: {string.Join("  ", groups.Take(6).Select(g => $"[{g.Key}]x{g.Count()}"))}");
+            Console.WriteLine($"  Stimulus {kv.Key}: dominant zone [{top.Key}] " +
+                              $"— repeatability {consistency:F1}% ({top.Count()}/{kv.Value.Count})");
+            Console.WriteLine($"    distribution: {string.Join("  ", groups.Take(6).Select(g => $"[{g.Key}]x{g.Count()}"))}");
             foreach (var z in groups.Select(g => g.Key)) allZones.Add(z);
         }
 
         double bits = Math.Log2(Math.Max(1, allZones.Count));
         double avgSpikes = _spikeCounts.Count == 0 ? 0 : _spikeCounts.Average();
-        double sparsity = 100.0 * (1.0 - avgSpikes / _neuronCount); // % que permaneció en silencio
+        double sparsity = 100.0 * (1.0 - avgSpikes / _neuronCount); // % neurons that stayed silent
 
         Console.WriteLine();
-        Console.WriteLine("=== MEDICIONES ===");
-        Console.WriteLine($"  Zonas distintas observadas : {allZones.Count}");
-        Console.WriteLine($"  Capacidad estimada         : {bits:F2} bits (log2 de zonas distintas)");
-        Console.WriteLine($"  Cota combinatoria (n!)     : {_neuronCount}! = {Factorial(_neuronCount)} órdenes posibles");
-        Console.WriteLine($"  Spikes promedio / ensayo  : {avgSpikes:F2} de {_neuronCount} neuronas");
-        Console.WriteLine($"  Dispersión (silencio)      : {sparsity:F1}% de las neuronas no dispararon");
-        Console.WriteLine($"  => Cada inferencia usó ~{avgSpikes:F1} spikes: ese es el cómputo real.");
-        Console.WriteLine($"  Discriminabilidad 1-NN    : {NearestNeighborAccuracy():F1}% " +
-                          $"(¿el patrón identifica al estímulo?)");
+        Console.WriteLine("=== MEASUREMENTS ===");
+        Console.WriteLine($"  Distinct zones observed   : {allZones.Count}");
+        Console.WriteLine($"  Estimated capacity         : {bits:F2} bits (log2 of distinct zones)");
+        Console.WriteLine($"  Combinatorial bound (n!)   : {_neuronCount}! = {Factorial(_neuronCount)} possible orders");
+        Console.WriteLine($"  Average spikes / trial     : {avgSpikes:F2} of {_neuronCount} neurons");
+        Console.WriteLine($"  Sparsity (silence)         : {sparsity:F1}% silent neurons");
+        Console.WriteLine($"  => Each inference used ~{avgSpikes:F1} spikes: actual event budget.");
+        Console.WriteLine($"  1-NN Discriminability      : {NearestNeighborAccuracy():F1}%");
     }
 
     private static long Factorial(int n)

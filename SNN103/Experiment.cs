@@ -1,32 +1,26 @@
 namespace SNN103;
 
 /// <summary>
-/// EL EXPERIMENTO (uno solo): DÍGITOS REALES, dos redes de frente.
+/// THE EXPERIMENT: REAL DIGITS, comparing SNN and classic MLP.
 ///
-///   Datos: dígitos 8x8 binarizados (clases 0-3), train/test separados.
-///   Los de prueba la red no los ve hasta la medición final.
+///   Data: 8x8 binarized digits (classes 0-3 for pilot, 0-9 for core ablation).
+///   Unseen test partition strictly kept until final evaluation.
 ///
-///   Nuestra red:
-///     - La imagen en 4 rebanadas de 16 píxeles (2 filas cada una).
-///     - Nivel 1: 12 grupos de 4 por rebanada, pesos FIJOS al azar
-///       (receta v2: expansión aleatoria estable). Cada grupo produce un
-///       ORDEN real de 4 spikes; el rasgo de cada neurona es 1/rango.
-///     - Lectura: perceptrón supervisado sobre los 192 rasgos de orden.
-///       Lección honesta del intento anterior: la regla por pares aprende
-///       DICCIONARIOS (un patrón -> un orden); con 359 patrones solapados
-///       hace falta aprendizaje ESTADÍSTICO, y esa es la herramienta.
+///   SNN103 Network:
+///     - Image split into 4 strips of 16 pixels (2 rows each).
+///     - Level 1: 12 groups of 4 LIF neurons per strip, fixed random weights.
+///       Each group emits a rank order; neuron feature is 1 / rank.
+///     - Readout: Supervised perceptron over the 192 rank features.
 ///
-///   La rival: perceptrón multicapa clásico 64->32->4, mismos datos.
-///
-///   Se mide: precisión en el TEST y costo por decisión:
-///   spikes (nuestra) vs multiplicaciones (la rival).
+///   Baseline: Classic MLP 64->32->classes trained on the exact same data.
+///   Metrics: Test accuracy and operations per decision (spikes vs multiplications).
 /// </summary>
-public static class Experimento
+public static class Experiment
 {
     const int N = 4;
     const int Inputs = 64, Classes = 4;
     const int Strips = 4, StripInputs = 16, GroupsPerStrip = 12, L1Groups = 48;
-    const int Feats = L1Groups * N; // 128 rasgos de orden
+    const int Feats = L1Groups * N; // 192 order features
     const int MaxEpochsReadout = 500, MaxEpochsMlp = 300;
 
     public static void Run()
@@ -70,7 +64,7 @@ public static class Experimento
             $"Dataset loaded: {trainX.Count} training samples | {testX.Count} test samples."));
         Console.WriteLine();
 
-        // ---------- Nivel 1: fijo al azar ----------
+        // ---------- Level 1: fixed random front-end ----------
         var l1 = new CompetitiveLayer[L1Groups];
         for (int s = 0; s < Strips; s++)
             for (int g = 0; g < GroupsPerStrip; g++)
@@ -79,25 +73,25 @@ public static class Experimento
             "[1/3] Front-End SNN: 48 grupos de 4 neuronas generados con pesos estables.",
             "[1/3] SNN Front-End: 48 groups of 4 neurons instantiated with stable weights."));
 
-        // Rasgos de orden para train y test (el test se cuenta una sola vez aquí).
+        // Rank features for train and test sets
         var trainFeats = trainX.Select(x => RankFeatures(x, l1, out _)).ToList();
         long spikesSum = 0;
         var testFeats = testX.Select(x => { var f = RankFeatures(x, l1, out int sp); spikesSum += sp; return f; }).ToList();
         double spikesAvg = (double)spikesSum / testX.Count;
 
-        // ---------- Lectura: perceptrón ----------
+        // ---------- Supervised Readout ----------
         Console.WriteLine(I18n.T(
             "[2/3] Entrenando Readout Lineal (Perceptrón) sobre los 192 rasgos de orden...",
             "[2/3] Training Linear Readout (Perceptron) on 192 rank features..."));
         var readout = new ReadoutLayer(Feats, Classes, seed: 11);
-        var order = Enumerable.Range(0, trainX.Count).ToArray();
+        var sampleOrder = Enumerable.Range(0, trainX.Count).ToArray();
         var rng = new Random(7);
         int convergedAt = -1;
         for (int epoch = 0; epoch < MaxEpochsReadout; epoch++)
         {
-            Shuffle(order, rng);
+            Shuffle(sampleOrder, rng);
             double err = 0;
-            foreach (int i in order) err += readout.Train(trainFeats[i], OneHot(trainY[i]));
+            foreach (int i in sampleOrder) err += readout.Train(trainFeats[i], OneHot(trainY[i]));
             if (epoch % 100 == 0 || err == 0)
                 Console.WriteLine(I18n.T(
                     $"      Época {epoch,3}: {err} errores de clasificación",
@@ -126,16 +120,16 @@ public static class Experimento
             $"      SNN103 Accuracy:  {snnAcc:F1}%  (~{spikesAvg:F1} spikes/decision)"));
         Console.WriteLine();
 
-        // ---------- La rival: MLP clásico ----------
+        // ---------- Baseline: Classic MLP ----------
         Console.WriteLine(I18n.T(
             "[3/3] Entrenando red rival: MLP Clásico 64 -> 32 -> 4...",
             "[3/3] Training baseline: Classic MLP 64 -> 32 -> 4..."));
         var mlp = new Mlp(Inputs, 32, Classes, seed: 11);
         var mlpOrder = Enumerable.Range(0, trainX.Count).ToArray();
-        var mrng = new Random(21);
+        var mlpRng = new Random(21);
         for (int epoch = 0; epoch < MaxEpochsMlp; epoch++)
         {
-            Shuffle(mlpOrder, mrng);
+            Shuffle(mlpOrder, mlpRng);
             foreach (int i in mlpOrder) mlp.TrainSample(trainX[i], trainY[i], lr: 0.3);
             if (epoch % 100 == 0 || epoch == MaxEpochsMlp - 1)
                 Console.WriteLine(I18n.T(
@@ -158,7 +152,7 @@ public static class Experimento
             $"      MLP Accuracy:     {mlpAcc:F1}%  (~{multsAvg:F0} multiplications/decision)"));
         Console.WriteLine();
 
-        // ---------- Muestra visible ----------
+        // ---------- Qualitative Samples ----------
         Console.WriteLine(I18n.T(
             "--- Muestra cualitativa de predicciones (real vs SNN vs MLP) ---",
             "--- Qualitative sample predictions (ground truth vs SNN vs MLP) ---"));
@@ -172,7 +166,7 @@ public static class Experimento
             Console.WriteLine();
         }
 
-        // ---------- Veredicto ----------
+        // ---------- Scorecard ----------
         double readoutMults = (double)Feats * Classes;
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("========================================================================");
@@ -191,21 +185,17 @@ public static class Experimento
             $"  - Ratio de eventos: ~{(multsAvg / spikesAvg):F1}x menos operaciones dinámicas en la SNN.",
             $"  - Event ratio:      ~{(multsAvg / spikesAvg):F1}x fewer dynamic operations in SNN."));
         Console.WriteLine();
-        // ---------- Exportar Figuras con ChartExporter ----------
+
+        // ---------- Export Figures via ChartExporter ----------
         try
         {
-            // 1. Matriz de confusión
             int[,] confMat = new int[Classes, Classes];
             for (int i = 0; i < testX.Count; i++)
                 confMat[testY[i], snnPred[i]]++;
             ChartExporter.ExportConfusionMatrix(confMat, Classes);
 
-            // 2. SNN vs MLP comparación
             ChartExporter.ExportSnnVsMlpComparison(snnAcc, mlpAcc, spikesAvg, multsAvg);
 
-            // 3. Raster plot de una muestra de prueba (ej. primer dígito)
-            var samplePatch = Slice(testX[0], 0);
-            var sampleResult = l1[0].PresentStimulus(samplePatch, 0.0);
             var spikeTimes = new List<double>();
             var neuronIndices = new List<double>();
             for (int s = 0; s < Strips; s++)
@@ -231,12 +221,12 @@ public static class Experimento
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[Aviso] No se pudieron exportar algunas figuras: {ex.Message}");
+            Console.WriteLine($"[Aviso / Warning] Error exporting figures: {ex.Message}");
             Console.ResetColor();
         }
     }
 
-    // ================= Construcción =================
+    // ================= Factory & Helpers =================
 
     private static CompetitiveLayer NewGroup(int inputs, int seed, double gain)
     {
@@ -262,21 +252,20 @@ public static class Experimento
     }
 
     /// <summary>
-    /// Resuelve el CSV: si la ruta no existe tal cual, se busca junto al
-    /// ejecutable (carpeta de salida), donde el .csproj copia datos\*.csv
-    /// en cada compilación. Así cualquiera puede verificar los resultados.
+    /// Resolves CSV path: if file does not exist directly, searches beside
+    /// the executable where build targets copy data files.
     /// </summary>
     private static string ResolveCsv(string path)
     {
         if (Path.IsPathRooted(path) || File.Exists(path)) return path;
-        string juntoAlExe = Path.Combine(AppContext.BaseDirectory, path);
-        return File.Exists(juntoAlExe) ? juntoAlExe : path;
+        string nextToExe = Path.Combine(AppContext.BaseDirectory, path);
+        return File.Exists(nextToExe) ? nextToExe : path;
     }
 
     private static (List<double[]> xs, List<int> ys) LoadCsv(string path)
     {
         path = ResolveCsv(path);
-        Console.WriteLine($"CSV usado: {path}");
+        Console.WriteLine($"CSV used: {path}");
         var xs = new List<double[]>();
         var ys = new List<int>();
         foreach (var line in File.ReadAllLines(path))
@@ -289,7 +278,7 @@ public static class Experimento
         return (xs, ys);
     }
 
-    /// <summary>Rebanada s: filas 2s y 2s+1 (16 píxeles).</summary>
+    /// <summary>Strip s: rows 2s and 2s+1 (16 pixels total).</summary>
     private static double[] Slice(double[] x, int s)
     {
         var p = new double[StripInputs];
@@ -300,8 +289,8 @@ public static class Experimento
     }
 
     /// <summary>
-    /// Rasgos de orden: por cada grupo, la neurona en el puesto r vale 1/(r+1);
-    /// la que no disparó vale 0. 128 rasgos en total.
+    /// Rank features: for each group, neuron firing at arrival rank r gets 1/(r+1);
+    /// non-firing neuron gets 0.0. 192 features total.
     /// </summary>
     private static double[] RankFeatures(double[] x, CompetitiveLayer[] l1, out int spikes)
     {
@@ -348,7 +337,7 @@ public static class Experimento
         }
     }
 
-    // ================= La rival: MLP clásico =================
+    // ================= Baseline: Classic MLP =================
 
     private sealed class Mlp
     {
@@ -356,7 +345,7 @@ public static class Experimento
         readonly double[,] w1, w2;
         readonly double[] b1, b2;
         readonly Random rng;
-        public long Mults; // multiplicaciones en forward (para medir costo)
+        public long Mults; // forward multiplications for compute cost tracking
 
         public Mlp(int nIn, int nHid, int nOut, int seed)
         {
@@ -461,14 +450,13 @@ public static class Experimento
         }
     }
 
-    // ============ Punto 1 del artículo: 10 clases × 5 semillas ============
+    // ============ Core Paper Result: 10 classes × 5 seeds ============
     //
-    // Qué se mide, por semilla (split estratificado 50/50 + pesos nuevos):
-    //   a) nuestra red con rasgos de ORDEN (1/rango),
-    //   b) la MISMA capa con rasgos BINARIOS (disparó/no disparó) — ablación,
-    //   c) MLP clásico 64->32->10 sobre los mismos datos.
-    // Se reporta media ± desviación en test. Si (a) supera a (b) con las
-    // mismas semillas, el orden aporta de verdad.
+    // Evaluates per seed (50/50 stratified split + fresh weights):
+    //   a) SNN with ORDER features (1/rank),
+    //   b) SAME SNN layer with BINARY features (fired/not fired) — ablation,
+    //   c) Classic MLP 64->32->10 on the identical splits.
+    // Reports mean ± std on test set.
 
     public static void Run10()
     {
@@ -616,7 +604,7 @@ public static class Experimento
             $"     close it, as reported by the pre-registered stopping rule."));
         Console.WriteLine("========================================================================");
 
-        // ---------- Exportar Gráfico de Ablación de 10 Clases ----------
+        // ---------- Export 10-Class Benchmark Plot ----------
         try
         {
             ChartExporter.ExportBenchmark10Classes(accOrder, accBin, accMlp);
@@ -624,15 +612,15 @@ public static class Experimento
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[Aviso] No se pudo exportar la gráfica de benchmark: {ex.Message}");
+            Console.WriteLine($"[Aviso / Warning] Error exporting benchmark plot: {ex.Message}");
             Console.ResetColor();
         }
     }
 
     /// <summary>
-    /// Demostración analítica (Sección 4.2 del paper): Tolerancia de subregiones ante ruido temporal de canal.
-    /// Ilustra analíticamente el principio físico de espaciado temporal: por qué grupos modulares pequeños (2x4)
-    /// conservan el orden mientras grupos largos (1x8) colapsan ante perturbaciones de canal.
+    /// Analytical demo (Paper Section 4.2): Subregions tolerance to channel timing noise.
+    /// Demonstrates the physical timing margin principle: why modular 4-neuron groups (2x4)
+    /// preserve arrival permutations while 8-neuron groups (1x8) collapse under channel jitter.
     /// </summary>
     public static void RunNoiseRobustnessDemo()
     {
@@ -716,7 +704,7 @@ public static class Experimento
         Console.WriteLine("========================================================================");
     }
 
-    /// <summary>Una sola simulación por muestra: devuelve rasgos de orden Y binarios.</summary>
+    /// <summary>Single simulation per sample: extracts BOTH order features and binary features.</summary>
     private static void ExtractBoth(double[] x, CompetitiveLayer[] l1, out double[] ord, out double[] bin, out int spikes)
     {
         ord = new double[Feats];
@@ -763,13 +751,13 @@ public static class Experimento
     private static double TrainReadout(List<double[]> trF, List<int> trY, List<double[]> teF, List<int> teY, int seed)
     {
         var ro = new ReadoutLayer(Feats, 10, seed);
-        var order = Enumerable.Range(0, trF.Count).ToArray();
+        var sampleOrder = Enumerable.Range(0, trF.Count).ToArray();
         var rng = new Random(seed * 31 + 7);
         for (int epoch = 0; epoch < MaxEpochsReadout; epoch++)
         {
-            Shuffle(order, rng);
+            Shuffle(sampleOrder, rng);
             double err = 0;
-            foreach (int i in order) err += ro.Train(trF[i], OneHot10(trY[i]));
+            foreach (int i in sampleOrder) err += ro.Train(trF[i], OneHot10(trY[i]));
             if (err == 0) break;
         }
         long ok = 0;

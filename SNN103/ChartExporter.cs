@@ -16,25 +16,25 @@ public static class ChartExporter
         Directory.CreateDirectory(outputFolder);
 
         var myPlot = new ScottPlot.Plot();
-        myPlot.Title("SNN103 vs MLP Clásico: Precisión y Cómputo (4 clases)");
+        myPlot.Title("SNN103 vs Classic MLP: Accuracy & Computation (4 Classes)");
 
         double[] accuracies = { snnAcc, mlpAcc };
-        string[] labels = { $"SNN103\n(~{snnSpikes:F1} Spikes/inf)", $"MLP Clásico\n(~{mlpMults:F0} MACs/inf)" };
+        string[] labels = { $"SNN103\n(~{snnSpikes:F1} Spikes/inf)", $"Classic MLP\n(~{mlpMults:F0} MACs/inf)" };
 
         var barPlot = myPlot.Add.Bars(accuracies);
-        barPlot.LegendText = "Precisión Test (%)";
+        barPlot.LegendText = "Test Accuracy (%)";
         
         myPlot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericManual(
             new[] { 0.0, 1.0 },
             labels
         );
 
-        myPlot.Axes.Left.Label.Text = "Precisión (%)";
+        myPlot.Axes.Left.Label.Text = "Accuracy (%)";
         myPlot.Axes.SetLimitsY(0, 100);
 
         string filePath = Path.Combine(outputFolder, "snn_vs_mlp_comparison.png");
         myPlot.SavePng(filePath, 800, 600);
-        Console.WriteLine($"[Gráfica Exportada] {filePath}");
+        Console.WriteLine($"[Chart Exported] {filePath}");
     }
 
     public static void ExportConfusionMatrix(int[,] matrix, int numClasses, string outputFolder = "plots")
@@ -42,7 +42,7 @@ public static class ChartExporter
         Directory.CreateDirectory(outputFolder);
 
         var myPlot = new ScottPlot.Plot();
-        myPlot.Title("Matriz de Confusión - SNN103 (Datos de Prueba)");
+        myPlot.Title("Confusion Matrix - SNN103 (Test Set)");
 
         double[,] values = new double[numClasses, numClasses];
         for (int r = 0; r < numClasses; r++)
@@ -56,12 +56,12 @@ public static class ChartExporter
         var heatmap = myPlot.Add.Heatmap(values);
         heatmap.Colormap = new ScottPlot.Colormaps.Viridis();
 
-        myPlot.Axes.Left.Label.Text = "Clase Real";
-        myPlot.Axes.Bottom.Label.Text = "Clase Predicha";
+        myPlot.Axes.Left.Label.Text = "True Class";
+        myPlot.Axes.Bottom.Label.Text = "Predicted Class";
 
         string filePath = Path.Combine(outputFolder, "confusion_matrix.png");
         myPlot.SavePng(filePath, 700, 600);
-        Console.WriteLine($"[Gráfica Exportada] {filePath}");
+        Console.WriteLine($"[Chart Exported] {filePath}");
     }
 
     public static void ExportRasterPlot(double[] spikeTimes, double[] neuronIndices, string outputFolder = "plots")
@@ -69,18 +69,18 @@ public static class ChartExporter
         Directory.CreateDirectory(outputFolder);
 
         var myPlot = new ScottPlot.Plot();
-        myPlot.Title("Raster Plot - Trama Temporal de Impulsos (Spikes)");
+        myPlot.Title("Spike Raster Plot - Burst-Driven Temporal Timing");
 
         var scatter = myPlot.Add.ScatterPoints(spikeTimes, neuronIndices);
         scatter.MarkerSize = 6;
         scatter.Color = ScottPlot.Colors.Navy;
 
-        myPlot.Axes.Bottom.Label.Text = "Pasos de Simulación / Tiempo (t)";
-        myPlot.Axes.Left.Label.Text = "Índice de Neurona / Grupo";
+        myPlot.Axes.Bottom.Label.Text = "Simulation Steps / Time (t)";
+        myPlot.Axes.Left.Label.Text = "Neuron / Subregion Index";
 
         string filePath = Path.Combine(outputFolder, "raster_plot.png");
         myPlot.SavePng(filePath, 800, 500);
-        Console.WriteLine($"[Gráfica Exportada] {filePath}");
+        Console.WriteLine($"[Chart Exported] {filePath}");
     }
 
     public static void ExportBenchmark10Classes(
@@ -92,7 +92,7 @@ public static class ChartExporter
         Directory.CreateDirectory(outputFolder);
 
         var myPlot = new ScottPlot.Plot();
-        myPlot.Title("Ablación Central: Orden vs Binario vs MLP (10 Clases - 5 Semillas)");
+        myPlot.Title("Core Ablation: Order vs Binary vs MLP (10 Classes - 5 Seeds)");
 
         double meanOrder = accOrder.Average();
         double meanBin = accBin.Average();
@@ -100,25 +100,25 @@ public static class ChartExporter
 
         double[] values = { meanOrder, meanBin, meanMlp };
         string[] labels = { 
-            $"SNN Orden\n{meanOrder:F1}% ± {Std(accOrder):F1}", 
-            $"SNN Binario\n{meanBin:F1}% ± {Std(accBin):F1}", 
-            $"MLP Clásico\n{meanMlp:F1}% ± {Std(accMlp):F1}" 
+            $"SNN Order\n{meanOrder:F1}% ± {Std(accOrder):F1}", 
+            $"SNN Binary\n{meanBin:F1}% ± {Std(accBin):F1}", 
+            $"Classic MLP\n{meanMlp:F1}% ± {Std(accMlp):F1}" 
         };
 
         var bars = myPlot.Add.Bars(values);
-        bars.LegendText = "Precisión Media Test (%)";
+        bars.LegendText = "Mean Test Accuracy (%)";
 
         myPlot.Axes.Bottom.TickGenerator = new ScottPlot.TickGenerators.NumericManual(
             new[] { 0.0, 1.0, 2.0 },
             labels
         );
 
-        myPlot.Axes.Left.Label.Text = "Precisión en Test Set (%)";
+        myPlot.Axes.Left.Label.Text = "Test Accuracy (%)";
         myPlot.Axes.SetLimitsY(0, 105);
 
         string filePath = Path.Combine(outputFolder, "benchmark_10classes_ablation.png");
         myPlot.SavePng(filePath, 850, 600);
-        Console.WriteLine($"[Gráfica Exportada] {filePath}");
+        Console.WriteLine($"[Chart Exported] {filePath}");
     }
 
     private static double Std(List<double> v)

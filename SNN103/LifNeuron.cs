@@ -1,27 +1,25 @@
 namespace SNN103;
 
 /// <summary>
-/// Neurona integrate-and-fire con fuga (LIF).
-/// Integra la corriente de entrada en su potencial de membrana V;
-/// cuando V alcanza el umbral, emite un spike y se resetea.
-/// Es el "oyente": escucha todas las entradas, solo responde si el
-/// estímulo supera lo que ella entiende (su umbral).
+/// Leaky Integrate-and-Fire (LIF) neuron model.
+/// Integrates input current into membrane potential V;
+/// when V reaches threshold, emits a spike and resets.
+/// Responds only when the stimulus drives potential above its threshold.
 /// </summary>
 public sealed class LifNeuron
 {
-    public double V;                    // potencial de membrana actual
-    public double VRest = 0.0;          // potencial de reposo
-    public double VReset = 0.0;         // potencial tras disparar
-    public double Threshold = 1.0;      // umbral actual (sube con la inhibición lateral)
-    public double BaseThreshold = 1.0;  // umbral de reposo
-    public double TauM = 25.0;          // constante de tiempo de membrana (pasos)
-    public int RefractorySteps = 3;     // pasos ciego tras disparar
+    public double V;                    // Current membrane potential
+    public double VRest = 0.0;          // Resting potential
+    public double VReset = 0.0;         // Post-spike reset potential
+    public double Threshold = 1.0;      // Dynamic threshold (increases with lateral inhibition)
+    public double BaseThreshold = 1.0;  // Baseline resting threshold
+    public double TauM = 25.0;          // Membrane time constant (steps)
+    public int RefractorySteps = 3;     // Refractory period steps after firing
 
     /// <summary>
-    /// Compromiso: la neurona solo dispara si su potencial se mantiene
-    /// sobre el umbral este número de pasos CONSECUTIVOS. Filtra el ruido:
-    /// un cruce fugaz por jitter no dispara; solo la evidencia sostenida
-    /// ("de verdad entiendo este estímulo") produce un spike.
+    /// Commitment steps: neuron only fires if potential remains
+    /// above threshold for this number of CONSECUTIVE steps.
+    /// Filters out transient high-frequency jitter.
     /// </summary>
     public int CommitSteps = 3;
 
@@ -37,8 +35,8 @@ public sealed class LifNeuron
     }
 
     /// <summary>
-    /// Avanza un paso de simulación. Devuelve true si la neurona disparó
-    /// (tras sostener el umbral CommitSteps pasos consecutivos).
+    /// Advances simulation by one step. Returns true if the neuron fired
+    /// (after sustaining potential above threshold for CommitSteps consecutive steps).
     /// </summary>
     public bool Step(double inputCurrent)
     {
@@ -68,13 +66,11 @@ public sealed class LifNeuron
     }
 
     /// <summary>
-    /// Inhibición lateral por salto de umbral: cuando una rival dispara,
-    /// mi umbral sube y me cuesta más responder. Crea gaps temporales
-    /// grandes entre disparos (el jitter no los cruza) y el orden resultante
-    /// es un ranking por mérito: la mejor "entendedora" primero.
+    /// Lateral inhibition via threshold jump: when a competing neuron fires,
+    /// threshold increases to enforce temporal gaps and clean rank separation.
     /// </summary>
     public void RaiseThreshold(double amount) => Threshold += amount;
 
-    /// <summary>El umbral extra decae hacia el reposo con el tiempo.</summary>
+    /// <summary>Threshold decays back toward base resting value over time.</summary>
     public void DecayThreshold(double rate) => Threshold += (BaseThreshold - Threshold) * rate;
 }
